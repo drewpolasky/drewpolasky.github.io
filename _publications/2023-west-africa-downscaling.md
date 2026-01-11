@@ -1,5 +1,5 @@
 ---
-title: "Statistical Downscaling for Precipitation Projections in WEst AFrica"
+title: "Statistical Downscaling for Precipitation Projections in West Africa"
 collection: publications
 permalink: /publications/west-africa-downscaling/
 authors: "Polasky, A., Evans, J.L., Fuentes, J.D"
