@@ -1,0 +1,16 @@
+# Python requirements for gefs_forecast.py
+# Install with: pip install -r requirements.txt
+
+# Core data fetching
+herbie-data>=0.0.1
+
+# Data processing
+numpy>=1.20.0
+pandas>=1.3.0
+xarray>=0.19.0
+
+# Visualization
+matplotlib>=3.4.0
+
+# Optional: for enhanced functionality
+scipy>=1.7.0

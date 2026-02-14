@@ -1,0 +1,337 @@
+---
+layout: archive
+title: "Plume Diagram"
+permalink: /plume-diagram/
+author_profile: true
+---
+
+<style>
+  .plume-controls {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+  }
+  
+  .control-group {
+    margin: 10px 0;
+  }
+  
+  label {
+    display: inline-block;
+    width: 150px;
+    font-weight: bold;
+  }
+  
+  select {
+    padding: 5px 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    min-width: 200px;
+  }
+  
+  #plume-canvas {
+    border: 1px solid #ddd;
+    margin-top: 20px;
+    background-color: white;
+  }
+  
+  .info-text {
+    margin: 10px 0;
+    color: #666;
+    font-size: 14px;
+  }
+</style>
+
+<div class="plume-controls">
+  <h3>Forecast Model Selection</h3>
+  
+  <div class="control-group">
+    <label for="model-select">Forecast Model:</label>
+    <select id="model-select">
+      <option value="GFS">GFS (Global Forecast System)</option>
+      <option value="ECMWF">ECMWF (European Centre)</option>
+      <option value="AIFS">AIFS (AI Forecast System)</option>
+      <option value="AIGFS">AIGFS (AI Global Forecast System)</option>
+    </select>
+  </div>
+  
+  <div class="control-group">
+    <label for="variable-select">Variable:</label>
+    <select id="variable-select">
+      <option value="temperature">Temperature (°C)</option>
+      <option value="pressure">Pressure (hPa)</option>
+      <option value="wind">Wind Speed (m/s)</option>
+    </select>
+  </div>
+  
+  <p class="info-text">
+    Select a forecast model and variable to display the plume diagram. 
+    Plume diagrams show ensemble forecast spread over time.
+  </p>
+</div>
+
+<canvas id="plume-canvas" width="800" height="400"></canvas>
+
+<script>
+  // Get DOM elements
+  const modelSelect = document.getElementById('model-select');
+  const variableSelect = document.getElementById('variable-select');
+  const canvas = document.getElementById('plume-canvas');
+  const ctx = canvas.getContext('2d');
+  
+  // Model configurations
+  const modelConfigs = {
+    'GFS': { color: '#0066cc', label: 'GFS' },
+    'ECMWF': { color: '#cc0000', label: 'ECMWF' },
+    'AIFS': { color: '#00cc66', label: 'AIFS' },
+    'AIGFS': { color: '#cc6600', label: 'AIGFS' }
+  };
+  
+  // Generate sample plume data for demonstration
+  function generatePlumeData(model, variable) {
+    const hours = 120; // 5-day forecast
+    const ensembleSize = 50;
+    const data = [];
+    
+    // Base value depends on variable
+    let baseValue;
+    if (variable === 'temperature') {
+      baseValue = 15;
+    } else if (variable === 'pressure') {
+      baseValue = 1013;
+    } else {
+      baseValue = 10;
+    }
+    
+    // Generate ensemble members
+    for (let i = 0; i < ensembleSize; i++) {
+      const member = [];
+      let value = baseValue;
+      
+      for (let h = 0; h <= hours; h += 6) {
+        // Add some trend and noise
+        // Variable-specific trend and noise multipliers
+        let trendMultiplier, noiseMultiplier;
+        if (variable === 'temperature') {
+          trendMultiplier = 5;
+          noiseMultiplier = 8;
+        } else if (variable === 'pressure') {
+          trendMultiplier = 10;
+          noiseMultiplier = 15;
+        } else {
+          trendMultiplier = 2;
+          noiseMultiplier = 4;
+        }
+        
+        const trend = Math.sin(h / 20) * trendMultiplier;
+        const noise = (Math.random() - 0.5) * noiseMultiplier;
+        
+        // AIFS and AIGFS have slightly different spread characteristics
+        const spreadFactor = (model === 'AIFS' || model === 'AIGFS') ? 0.8 : 1.0;
+        
+        value = baseValue + trend + noise * spreadFactor;
+        member.push({ hour: h, value: value });
+      }
+      data.push(member);
+    }
+    
+    return data;
+  }
+  
+  // Calculate percentiles from ensemble data
+  function calculatePercentiles(data, hour) {
+    const values = data.map(member => {
+      const point = member.find(p => p.hour === hour);
+      return point ? point.value : null;
+    }).filter(v => v !== null);
+    
+    values.sort((a, b) => a - b);
+    
+    const getPercentile = (p) => {
+      const index = Math.min(Math.floor(values.length * p / 100), values.length - 1);
+      return values[index];
+    };
+    
+    return {
+      p10: getPercentile(10),
+      p25: getPercentile(25),
+      p50: getPercentile(50),
+      p75: getPercentile(75),
+      p90: getPercentile(90),
+      mean: values.reduce((a, b) => a + b, 0) / values.length
+    };
+  }
+  
+  // Draw the plume diagram
+  function drawPlume() {
+    const model = modelSelect.value;
+    const variable = variableSelect.value;
+    const data = generatePlumeData(model, variable);
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set up margins and dimensions
+    const margin = { top: 30, right: 30, bottom: 50, left: 60 };
+    const width = canvas.width - margin.left - margin.right;
+    const height = canvas.height - margin.top - margin.bottom;
+    
+    // Calculate scales
+    const maxHour = 120;
+    const allValues = data.flat().map(p => p.value);
+    const minValue = Math.min(...allValues);
+    const maxValue = Math.max(...allValues);
+    const valueRange = maxValue - minValue;
+    
+    const xScale = (hour) => margin.left + (hour / maxHour) * width;
+    const yScale = (value) => margin.top + height - ((value - minValue) / valueRange) * height;
+    
+    // Draw axes
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, margin.top + height);
+    ctx.lineTo(margin.left + width, margin.top + height);
+    ctx.stroke();
+    
+    // Draw axis labels
+    ctx.fillStyle = '#000';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Forecast Hour', margin.left + width / 2, canvas.height - 10);
+    
+    ctx.save();
+    ctx.translate(15, margin.top + height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(variable.charAt(0).toUpperCase() + variable.slice(1), 0, 0);
+    ctx.restore();
+    
+    // Draw time axis labels
+    ctx.textAlign = 'center';
+    for (let h = 0; h <= maxHour; h += 24) {
+      const x = xScale(h);
+      ctx.fillText(h.toString(), x, canvas.height - 30);
+      
+      // Draw grid lines
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.beginPath();
+      ctx.moveTo(x, margin.top);
+      ctx.lineTo(x, margin.top + height);
+      ctx.stroke();
+    }
+    
+    // Draw value axis labels
+    ctx.textAlign = 'right';
+    const numYTicks = 5;
+    for (let i = 0; i <= numYTicks; i++) {
+      const value = minValue + (valueRange * i / numYTicks);
+      const y = yScale(value);
+      ctx.fillText(value.toFixed(1), margin.left - 5, y + 4);
+      
+      // Draw grid lines
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(margin.left + width, y);
+      ctx.stroke();
+    }
+    
+    // Draw percentile bands
+    const hours = [];
+    for (let h = 0; h <= maxHour; h += 6) {
+      hours.push(h);
+    }
+    
+    // 10-90 percentile band (lightest)
+    ctx.fillStyle = modelConfigs[model].color + '20';
+    ctx.beginPath();
+    for (let i = 0; i < hours.length; i++) {
+      const percentiles = calculatePercentiles(data, hours[i]);
+      const x = xScale(hours[i]);
+      const y = yScale(percentiles.p10);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    for (let i = hours.length - 1; i >= 0; i--) {
+      const percentiles = calculatePercentiles(data, hours[i]);
+      const x = xScale(hours[i]);
+      const y = yScale(percentiles.p90);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    
+    // 25-75 percentile band (darker)
+    ctx.fillStyle = modelConfigs[model].color + '40';
+    ctx.beginPath();
+    for (let i = 0; i < hours.length; i++) {
+      const percentiles = calculatePercentiles(data, hours[i]);
+      const x = xScale(hours[i]);
+      const y = yScale(percentiles.p25);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    for (let i = hours.length - 1; i >= 0; i--) {
+      const percentiles = calculatePercentiles(data, hours[i]);
+      const x = xScale(hours[i]);
+      const y = yScale(percentiles.p75);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    
+    // Draw median line
+    ctx.strokeStyle = modelConfigs[model].color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < hours.length; i++) {
+      const percentiles = calculatePercentiles(data, hours[i]);
+      const x = xScale(hours[i]);
+      const y = yScale(percentiles.p50);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    
+    // Draw title
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(modelConfigs[model].label + ' Plume Diagram', canvas.width / 2, 20);
+    
+    // Draw legend
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'left';
+    const legendX = margin.left + 10;
+    const legendY = margin.top + 10;
+    
+    ctx.fillStyle = modelConfigs[model].color + '20';
+    ctx.fillRect(legendX, legendY, 15, 15);
+    ctx.fillStyle = '#000';
+    ctx.fillText('10-90 percentile', legendX + 20, legendY + 12);
+    
+    ctx.fillStyle = modelConfigs[model].color + '40';
+    ctx.fillRect(legendX, legendY + 20, 15, 15);
+    ctx.fillStyle = '#000';
+    ctx.fillText('25-75 percentile', legendX + 20, legendY + 32);
+    
+    ctx.strokeStyle = modelConfigs[model].color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(legendX, legendY + 47);
+    ctx.lineTo(legendX + 15, legendY + 47);
+    ctx.stroke();
+    ctx.fillStyle = '#000';
+    ctx.fillText('Median', legendX + 20, legendY + 52);
+  }
+  
+  // Event listeners
+  modelSelect.addEventListener('change', drawPlume);
+  variableSelect.addEventListener('change', drawPlume);
+  
+  // Initial draw
+  drawPlume();
+</script>
