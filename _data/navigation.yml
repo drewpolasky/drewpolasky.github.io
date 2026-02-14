@@ -9,6 +9,9 @@ main:
   - title: "CV"
     url: /cv/
     
+  - title: "Plume Diagram"
+    url: /plume-diagram/
+    
   - title: "Other"
     url: /other/
     
