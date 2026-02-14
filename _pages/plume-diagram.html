@@ -112,8 +112,21 @@ author_profile: true
       
       for (let h = 0; h <= hours; h += 6) {
         // Add some trend and noise
-        const trend = Math.sin(h / 20) * (variable === 'temperature' ? 5 : variable === 'pressure' ? 10 : 2);
-        const noise = (Math.random() - 0.5) * (variable === 'temperature' ? 8 : variable === 'pressure' ? 15 : 4);
+        // Variable-specific trend and noise multipliers
+        let trendMultiplier, noiseMultiplier;
+        if (variable === 'temperature') {
+          trendMultiplier = 5;
+          noiseMultiplier = 8;
+        } else if (variable === 'pressure') {
+          trendMultiplier = 10;
+          noiseMultiplier = 15;
+        } else {
+          trendMultiplier = 2;
+          noiseMultiplier = 4;
+        }
+        
+        const trend = Math.sin(h / 20) * trendMultiplier;
+        const noise = (Math.random() - 0.5) * noiseMultiplier;
         
         // AIFS and AIGFS have slightly different spread characteristics
         const spreadFactor = (model === 'AIFS' || model === 'AIGFS') ? 0.8 : 1.0;
@@ -137,7 +150,7 @@ author_profile: true
     values.sort((a, b) => a - b);
     
     const getPercentile = (p) => {
-      const index = Math.floor(values.length * p / 100);
+      const index = Math.min(Math.floor(values.length * p / 100), values.length - 1);
       return values[index];
     };
     
